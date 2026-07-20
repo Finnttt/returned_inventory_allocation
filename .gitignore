@@ -1,0 +1,9 @@
+# Excel 临时锁文件
+~$*.xlsm
+~$*.xlsx
+# 系统垃圾
+Thumbs.db
+Desktop.ini
+# 编辑器临时文件
+*.tmp
+*.bak
