@@ -223,7 +223,7 @@ End Function
 
 Private Function OB_IsSummaryOnlyError(ByVal errorCode As String) As Boolean
     Select Case errorCode
-        Case ERR_E06, ERR_E08, ERR_E11
+        Case ERR_E08, ERR_E11
             OB_IsSummaryOnlyError = True
         Case Else
             OB_IsSummaryOnlyError = False

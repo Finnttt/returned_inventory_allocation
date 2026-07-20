@@ -406,17 +406,24 @@ Private Sub ApplyLayer2ShipmentConsistency( _
 
     For Each shipmentKey In orderShipments.Keys
         If Not inventoryShipments.Exists(shipmentKey) Then
-            issue.ShipmentNo = CStr(shipmentKey)
-            issue.WMSOrderNo = NA_PLACEHOLDER
-            issue.SKU = NA_PLACEHOLDER
-            issue.ErrorCode = ERR_E06
-            issue.SourceTable = SOURCE_RETURN_TABLE
-            issue.ExcelRowNum = 0
-            issue.FieldName = "物流单号"
-            issue.RawValue = CStr(shipmentKey)
-            issue.Reason = "物流单号仅存在于退单表"
+            ' E06 按退单行逐行生成明细（与 E07 对称），便于在数据异常明细表中定位到具体行。
+            If HasNormalizedReturnRows(orders) Then
+                For i = LBound(orders) To UBound(orders)
+                    If orders(i).ShipmentNo = CStr(shipmentKey) Then
+                        issue.ShipmentNo = orders(i).ShipmentNo
+                        issue.WMSOrderNo = orders(i).WMSOrderNo
+                        issue.SKU = orders(i).SKU
+                        issue.ErrorCode = ERR_E06
+                        issue.SourceTable = SOURCE_RETURN_TABLE
+                        issue.ExcelRowNum = orders(i).ExcelRowNum
+                        issue.FieldName = "物流单号"
+                        issue.RawValue = orders(i).ShipmentNo
+                        issue.Reason = "物流单号仅存在于退单表"
 
-            AppendValidationIssue issues, issue, failedShipments
+                        AppendValidationIssue issues, issue, failedShipments
+                    End If
+                Next i
+            End If
         End If
     Next shipmentKey
 
@@ -770,7 +777,7 @@ End Sub
 
 Private Function IsAnomalyDetailError(ByVal errorCode As String) As Boolean
     Select Case errorCode
-        Case ERR_E01, ERR_E02, ERR_E03, ERR_E04, ERR_E05, ERR_E07
+        Case ERR_E01, ERR_E02, ERR_E03, ERR_E04, ERR_E05, ERR_E06, ERR_E07
             IsAnomalyDetailError = True
         Case Else
             IsAnomalyDetailError = False

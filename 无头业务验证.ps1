@@ -9,6 +9,7 @@
 #   S5 调试日志（级别=详细 → 调试日志表 19 列且有数据行）
 #   S6 性能基线（500 物流单号 / 1500 退单行 / 2500 库存行，全部批量导入）
 #   S7 E02 原始值前导零（行号 "00001" 重复 → 异常明细原始值按文本保留 "00001"）
+#   S8 E06 进异常明细（物流单号仅在退单表 → 汇总与异常明细同时出现 E06）
 #   （非法配置场景由 RunSingleTest 17 的 TC-54a/b 覆盖；COM 触发未捕获 VBA 错误会挂死无头进程）
 #
 # 用法：
@@ -203,6 +204,24 @@ try {
     $rawCell = $wsA.Cells(2, 7)
     $ok = ($anomalies.Count -eq 2) -and ($rawCell.Text -eq "00001") -and ($rawCell.Value2.GetType().Name -eq "String")
     Report-Case "S7" $ok ("原始值=" + $rawCell.Text + " 类型=" + $rawCell.Value2.GetType().Name + " 异常行=" + $anomalies.Count)
+    $wb.Close($false)
+
+    # ---------- S8 E06 进入异常明细表（2026-07-20 规则变更） ----------
+    $wb = New-CaseWorkbook "s8"
+    Set-Row $wb.Worksheets.Item("输入_退单表") 2 @("SF3190000099003", "TK00009903", "H000000001", "00001", 5)
+    # 库存表留空：该物流单号仅在退单表 → E06
+    Run-Silent $wb "RunFullAllocationSilent"
+    $summary = Get-DataRows $wb "分配状态汇总表"
+    $wsA = $wb.Worksheets.Item("数据异常明细表")
+    $anomalies = Get-DataRows $wb "数据异常明细表"
+    $ok = ($summary.Count -eq 1) -and ($summary[0] -match "无法分配") -and ($summary[0] -match "E06") `
+        -and ($anomalies.Count -eq 1) `
+        -and ([string]$wsA.Cells(2, 1).Text -eq "退单表") `
+        -and ([string]$wsA.Cells(2, 3).Text -eq "SF3190000099003") `
+        -and ([string]$wsA.Cells(2, 6).Text -eq "物流单号") `
+        -and ([string]$wsA.Cells(2, 7).Text -eq "SF3190000099003") `
+        -and ([string]$wsA.Cells(2, 8).Text -eq "E06")
+    Report-Case "S8" $ok ("汇总=" + ($summary -join ";") + " 异常=" + ($anomalies -join ";"))
     $wb.Close($false)
 
     Write-Output ("VERDICT=" + $(if ($script:failCount -eq 0) { "PASS" } else { "FAIL" }) +

@@ -1482,6 +1482,20 @@ Private Sub TestValidateE06ShipmentOnlyInOrders()
     AssertTrue "E06 命中", ShipmentHasError(validationIssues, "SF3190000000093", ERR_E06)
     AssertFalse "E06 单侧缺失时不应叠加 E08", _
                 ShipmentHasError(validationIssues, "SF3190000000093", ERR_E08)
+
+    ' 2026-07-20 起 E06 按退单行生成明细：Excel行号/WMS/SKU 均可定位（进数据异常明细表）
+    Dim foundE06 As Boolean
+    Dim i As Long
+    For i = LBound(validationIssues) To UBound(validationIssues)
+        If validationIssues(i).ErrorCode = ERR_E06 Then
+            foundE06 = True
+            AssertEqualLong "E06 明细Excel行号", 2, validationIssues(i).ExcelRowNum
+            AssertEqualString "E06 明细WMS退单号", "TK10000093", validationIssues(i).WMSOrderNo
+            AssertEqualString "E06 明细SKU", "H000000093", validationIssues(i).SKU
+            AssertEqualString "E06 明细来源表", SOURCE_RETURN_TABLE, validationIssues(i).SourceTable
+        End If
+    Next i
+    AssertTrue "E06 生成行级明细问题记录", foundE06
 End Sub
 
 Private Sub TestValidateE07ShipmentOnlyInInventory()
@@ -3898,11 +3912,19 @@ Private Sub TestOutputSummary_E07WmsPlaceholder()
     AssertEqualString "TC-OB02 WMS 退单号=[N/A]", NA_PLACEHOLDER, OBT_RowColText(rows(1), 2)
 End Sub
 
-' TC-OB03：E06/E08/E11 只进入汇总，不进入异常明细
+' TC-OB03：E08/E11 只进入汇总，不进入异常明细；E06 自 2026-07-20 起按行进入异常明细（与 E07 对称）
 Private Sub TestAnomalyOutput_FilterSummaryOnlyCodes()
     Dim anomalies(1 To 4) As AnomalyRow
 
     anomalies(1).ErrorCode = ERR_E06
+    anomalies(1).SourceTable = SOURCE_RETURN_TABLE
+    anomalies(1).ExcelRowNum = 2
+    anomalies(1).ShipmentNo = "SF_OB03"
+    anomalies(1).WMSOrderNo = "TK_OB03"
+    anomalies(1).SKU = "H_OB03"
+    anomalies(1).FieldName = "物流单号"
+    anomalies(1).RawValue = "SF_OB03"
+    anomalies(1).Reason = "物流单号仅存在于退单表"
     anomalies(2).ErrorCode = ERR_E08
     anomalies(3).ErrorCode = ERR_E11
     anomalies(4).ErrorCode = ERR_E01
@@ -3918,8 +3940,9 @@ Private Sub TestAnomalyOutput_FilterSummaryOnlyCodes()
     Dim rows() As OutputRow
     rows = BuildAnomalyOutputRows(anomalies)
 
-    AssertEqualLong "TC-OB03 异常明细仅保留1行", 1, OBT_OutputRowCount(rows)
-    AssertEqualString "TC-OB03 保留错误码=E01", ERR_E01, OBT_RowColText(rows(1), 8)
+    AssertEqualLong "TC-OB03 异常明细保留E06+E01两行", 2, OBT_OutputRowCount(rows)
+    AssertEqualString "TC-OB03 第1行保留错误码=E06", ERR_E06, OBT_RowColText(rows(1), 8)
+    AssertEqualString "TC-OB03 第2行保留错误码=E01", ERR_E01, OBT_RowColText(rows(2), 8)
 End Sub
 
 ' TC-OB04：调试日志输入空数组时返回空数组（不抛异常）
